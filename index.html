@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The Observer Pattern — A Field Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0F1420; --panel:#161D2E; --panel-2:#1D2740; --line:#2B3554;
+    --text:#E8EAF2; --muted:#8E97B8; --amber:#F2A93B; --teal:#57D9C4; --rose:#E8677D;
+    --ink-on-amber:#221604;
+    box-sizing:border-box;
+    padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  *{box-sizing:border-box;}
+  html{scroll-padding-top:70px;}
+  @media (prefers-color-scheme:light){
+    :root:not([data-theme="dark"]){
+      --ink:#FBFAF6; --panel:#FFFFFF; --panel-2:#F3F1E9; --line:#DEDACB;
+      --text:#1C2233; --muted:#5C6178; --amber:#B5780A; --teal:#0E8C79; --rose:#B23A55;
+      --ink-on-amber:#FFF7E9;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ink:#0F1420; --panel:#161D2E; --panel-2:#1D2740; --line:#2B3554;
+    --text:#E8EAF2; --muted:#8E97B8; --amber:#F2A93B; --teal:#57D9C4; --rose:#E8677D;
+  }
+  html,body{height:100%;}
+  body{
+    margin:0; background:var(--ink); color:var(--text);
+    font-family:'Inter',system-ui,sans-serif; line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3,.display{font-family:'Source Serif 4',Georgia,serif;}
+  code,pre,.mono{font-family:'JetBrains Mono',monospace;}
+  a{color:var(--teal);}
+  .wrap{max-width:1180px; margin:0 auto; padding:0 28px;}
+  .prose{max-width:700px;}
+
+  /* ---- top bar ---- */
+  header.top{
+    position:sticky; top:0; z-index:40; padding-top:env(safe-area-inset-top,0px);
+    background:color-mix(in srgb, var(--ink) 88%, transparent);
+    backdrop-filter:blur(10px); border-bottom:1px solid var(--line);
+  }
+  .topbar{display:flex; align-items:center; justify-content:space-between; height:58px;}
+  .brand{font-family:'Source Serif 4',serif; font-weight:600; font-size:1.05rem; letter-spacing:.2px;}
+  .brand span{color:var(--amber);}
+  nav.top-links{display:flex; gap:22px; font-size:.88rem; overflow-x:auto; scrollbar-width:none;}
+  nav.top-links::-webkit-scrollbar{display:none;}
+  nav.top-links a{color:var(--muted); white-space:nowrap; text-decoration:none; padding:4px 0; border-bottom:2px solid transparent;}
+  nav.top-links a:hover{color:var(--text); border-color:var(--amber);}
+
+  /* ---- layout with side rail ---- */
+  .layout{display:grid; grid-template-columns:200px 1fr; gap:56px; padding:40px 0 100px;}
+  @media (max-width:900px){ .layout{grid-template-columns:1fr;} .rail{display:none;} }
+  .rail{position:sticky; top:78px; align-self:start; font-size:.86rem;}
+  .rail h4{margin:0 0 10px; color:var(--muted); font-weight:600; font-size:.72rem; letter-spacing:.06em;}
+  .rail ol{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px;}
+  .rail a{color:var(--muted); text-decoration:none; display:block; border-left:2px solid var(--line); padding-left:10px;}
+  .rail a:hover{color:var(--text); border-color:var(--amber);}
+
+  main{min-width:0;}
+  section{padding:52px 0; border-bottom:1px solid var(--line);}
+  section:last-of-type{border-bottom:none;}
+  .kicker{color:var(--amber); font-size:.8rem; font-weight:600; letter-spacing:.03em; margin:0 0 10px;}
+  h2{font-size:1.7rem; margin:0 0 18px; font-weight:600;}
+  h3{font-size:1.15rem; margin:26px 0 10px; font-weight:600; color:var(--text);}
+  p{color:var(--text); margin:0 0 14px;}
+  .muted{color:var(--muted);}
+
+  /* ---- hero ---- */
+  .hero{padding:72px 0 40px; display:grid; grid-template-columns:1.1fr .9fr; gap:40px; align-items:center;}
+  @media (max-width:900px){ .hero{grid-template-columns:1fr;} }
+  .hero h1{font-size:clamp(2.3rem,4.6vw,3.4rem); line-height:1.08; margin:0 0 20px; font-weight:600;}
+  .hero .lede{font-size:1.08rem; color:var(--muted); max-width:52ch;}
+  .pill-row{display:flex; gap:10px; flex-wrap:wrap; margin-top:22px;}
+  .pill{border:1px solid var(--line); color:var(--muted); font-size:.78rem; padding:5px 11px; border-radius:100px;}
+
+  /* ---- broadcast diagram (hero) ---- */
+  .broadcast{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:30px; position:relative;}
+  svg{display:block; max-width:100%; height:auto;}
+  .node-label{font-family:'JetBrains Mono',monospace; font-size:11px; fill:var(--muted);}
+  .pulse{transform-origin:center; animation:pulse 2.6s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:.55;} 50%{opacity:1;}}
+  @media (prefers-reduced-motion:reduce){ .pulse{animation:none;} .ray{animation:none !important;} }
+  .ray{stroke-dasharray:4 5; animation:dash 1.6s linear infinite;}
+  @keyframes dash{to{stroke-dashoffset:-18;}}
+
+  /* ---- diagram card ---- */
+  .diagram{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:26px; margin:22px 0; overflow-x:auto;}
+  .diagram figcaption{margin-top:14px; font-size:.85rem; color:var(--muted); text-align:center;}
+
+  /* ---- two-col compare ---- */
+  .compare{display:grid; grid-template-columns:1fr 1fr; gap:18px; margin:20px 0;}
+  @media (max-width:700px){ .compare{grid-template-columns:1fr;} }
+  .compare .box{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:20px;}
+  .compare .box h4{margin:0 0 12px; font-size:.95rem; display:flex; align-items:center; gap:8px;}
+  .tag-bad{color:var(--rose);} .tag-good{color:var(--teal);}
+
+  /* ---- code ---- */
+  .code{background:var(--panel-2); border:1px solid var(--line); border-radius:10px; padding:18px 20px; overflow-x:auto; font-size:.85rem; margin:16px 0;}
+  .code pre{margin:0; white-space:pre;}
+  .code .c1{color:var(--muted);} .code .kw{color:var(--rose);} .code .fn{color:var(--teal);} .code .s{color:var(--amber);}
+
+  /* ---- term grid ---- */
+  .term-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:14px; margin:18px 0;}
+  @media (max-width:650px){ .term-grid{grid-template-columns:1fr;} }
+  .term{border:1px solid var(--line); border-radius:10px; padding:14px 16px; background:var(--panel);}
+  .term b{display:block; color:var(--amber); font-family:'JetBrains Mono',monospace; font-size:.85rem; margin-bottom:4px;}
+  .term span{color:var(--muted); font-size:.88rem;}
+
+  /* ---- example cards ---- */
+  .ex-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-top:20px;}
+  @media (max-width:900px){ .ex-grid{grid-template-columns:repeat(2,1fr);} }
+  @media (max-width:600px){ .ex-grid{grid-template-columns:1fr;} }
+  .ex-card{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:18px; }
+  .ex-card .icon{width:34px; height:34px; margin-bottom:10px;}
+  .ex-card h4{margin:0 0 6px; font-size:.98rem;}
+  .ex-card p{color:var(--muted); font-size:.86rem; margin:0;}
+
+  /* pros/cons */
+  .pc-grid{display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-top:16px;}
+  @media (max-width:700px){ .pc-grid{grid-template-columns:1fr;} }
+  .pc-grid ul{margin:0; padding-left:20px; color:var(--text);}
+  .pc-grid li{margin-bottom:10px; font-size:.94rem;}
+  .pc-head{font-weight:600; margin-bottom:10px; display:flex; align-items:center; gap:8px; font-size:1rem;}
+
+  footer{padding:34px 0 60px; color:var(--muted); font-size:.85rem;}
+  footer a{color:var(--muted);}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap topbar">
+    <div class="brand">Design Patterns <span>/</span> Observer</div>
+    <nav class="top-links">
+      <a href="#intent">Intent</a>
+      <a href="#motivation">Motivation</a>
+      <a href="#structure">Structure</a>
+      <a href="#pseudocode">Pseudocode</a>
+      <a href="#code">Example</a>
+      <a href="#pushpull">Push/Pull</a>
+      <a href="#tradeoffs">Trade-offs</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+<section class="hero">
+  <div>
+    <p class="kicker">Behavioral Design Pattern</p>
+    <h1>One change.<br>Many reactions.</h1>
+    <p class="lede">The Observer pattern lets an object broadcast that its state changed, without ever needing to know who's listening, or what they'll do about it.</p>
+    <div class="pill-row">
+      <span class="pill">Also known as: Publisher–Subscriber</span>
+      <span class="pill">Category: Behavioral</span>
+      <span class="pill">Difficulty: ★★☆</span>
+    </div>
+  </div>
+  <div class="broadcast">
+    <svg viewBox="0 0 360 240" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A subject node broadcasting to three observer nodes">
+      <circle class="pulse" cx="180" cy="52" r="34" fill="var(--amber)"/>
+      <text x="180" y="57" text-anchor="middle" font-family="JetBrains Mono" font-size="11" font-weight="600" fill="#221604">SUBJECT</text>
+      <g stroke="var(--amber)" stroke-width="2" class="ray">
+        <line x1="180" y1="86" x2="70" y2="170"/>
+        <line x1="180" y1="86" x2="180" y2="170"/>
+        <line x1="180" y1="86" x2="290" y2="170"/>
+      </g>
+      <g>
+        <circle cx="70" cy="188" r="26" fill="var(--panel-2)" stroke="var(--teal)" stroke-width="2"/>
+        <circle cx="180" cy="188" r="26" fill="var(--panel-2)" stroke="var(--teal)" stroke-width="2"/>
+        <circle cx="290" cy="188" r="26" fill="var(--panel-2)" stroke="var(--teal)" stroke-width="2"/>
+      </g>
+      <text x="70" y="192" text-anchor="middle" class="node-label">display</text>
+      <text x="180" y="192" text-anchor="middle" class="node-label">graph</text>
+      <text x="290" y="192" text-anchor="middle" class="node-label">alert</text>
+      <text x="70" y="230" text-anchor="middle" class="node-label" opacity=".7">update()</text>
+      <text x="180" y="230" text-anchor="middle" class="node-label" opacity=".7">update()</text>
+      <text x="290" y="230" text-anchor="middle" class="node-label" opacity=".7">update()</text>
+    </svg>
+  </div>
+</section>
+</div>
+
+<div class="wrap layout">
+  <aside class="rail">
+    <h4>On this page</h4>
+    <ol>
+      <li><a href="#intent">Intent</a></li>
+      <li><a href="#motivation">Motivation</a></li>
+      <li><a href="#analogy">Real-world feel</a></li>
+      <li><a href="#structure">Structure</a></li>
+      <li><a href="#workflow">Workflow</a></li>
+      <li><a href="#pseudocode">Pseudocode</a></li>
+      <li><a href="#code">Full example</a></li>
+      <li><a href="#pushpull">Push vs. pull</a></li>
+      <li><a href="#applicability">When to use</a></li>
+      <li><a href="#tradeoffs">Pros &amp; cons</a></li>
+      <li><a href="#examples">Where it shows up</a></li>
+      <li><a href="#relations">Related patterns</a></li>
+    </ol>
+  </aside>
+
+  <main>
+
+    <section id="intent">
+      <p class="kicker">01 — Intent</p>
+      <h2>Define a one-to-many dependency between objects.</h2>
+      <div class="prose">
+        <p>Observer is a behavioral design pattern that lets you define a subscription mechanism so that multiple objects — <strong>observers</strong> — are notified automatically whenever the object they're watching — the <strong>subject</strong> — changes state.</p>
+        <p>The subject never hard-codes who it's talking to. It just keeps a list of subscribers and calls them all when something worth knowing about happens.</p>
+      </div>
+    </section>
+
+    <section id="motivation">
+      <p class="kicker">02 — Motivation</p>
+      <h2>What goes wrong without it</h2>
+      <div class="prose">
+        <p>Picture a weather station. The temperature updates, and five different parts of the app need to know: a display, a graph, a stats panel, a mobile alert, a push notification. The obvious first pass is to have the weather station call each one directly.</p>
+      </div>
+      <div class="compare">
+        <div class="box">
+          <h4><span class="tag-bad">✕</span> Direct calls</h4>
+          <svg viewBox="0 0 300 150" xmlns="http://www.w3.org/2000/svg">
+            <rect x="105" y="8" width="90" height="30" rx="6" fill="var(--rose)" opacity=".15" stroke="var(--rose)"/>
+            <text x="150" y="27" text-anchor="middle" class="node-label" fill="var(--rose)">WeatherStation</text>
+            <g stroke="var(--rose)" stroke-width="1.5">
+              <line x1="130" y1="38" x2="40" y2="110"/>
+              <line x1="150" y1="38" x2="150" y2="110"/>
+              <line x1="170" y1="38" x2="260" y2="110"/>
+            </g>
+            <rect x="10" y="112" width="60" height="26" rx="5" fill="none" stroke="var(--line)"/>
+            <rect x="120" y="112" width="60" height="26" rx="5" fill="none" stroke="var(--line)"/>
+            <rect x="230" y="112" width="60" height="26" rx="5" fill="none" stroke="var(--line)"/>
+            <text x="40" y="129" text-anchor="middle" class="node-label">Display</text>
+            <text x="150" y="129" text-anchor="middle" class="node-label">Graph</text>
+            <text x="260" y="129" text-anchor="middle" class="node-label">Alert</text>
+          </svg>
+          <p class="muted" style="font-size:.87rem; margin-top:8px;">Every new component means editing <code>WeatherStation</code> again. It knows too much about its dependents — tight coupling.</p>
+        </div>
+        <div class="box">
+          <h4><span class="tag-good">✓</span> Through an Observer interface</h4>
+          <svg viewBox="0 0 300 150" xmlns="http://www.w3.org/2000/svg">
+            <rect x="105" y="8" width="90" height="30" rx="6" fill="var(--amber)" opacity=".2" stroke="var(--amber)"/>
+            <text x="150" y="27" text-anchor="middle" class="node-label" fill="var(--amber)">WeatherStation</text>
+            <line x1="150" y1="38" x2="150" y2="66" stroke="var(--teal)" stroke-width="1.5"/>
+            <rect x="95" y="66" width="110" height="26" rx="5" fill="var(--teal)" opacity=".12" stroke="var(--teal)"/>
+            <text x="150" y="83" text-anchor="middle" class="node-label" fill="var(--teal)">«Observer»</text>
+            <g stroke="var(--teal)" stroke-width="1.5">
+              <line x1="130" y1="92" x2="40" y2="112"/>
+              <line x1="150" y1="92" x2="150" y2="112"/>
+              <line x1="170" y1="92" x2="260" y2="112"/>
+            </g>
+            <rect x="10" y="112" width="60" height="26" rx="5" fill="none" stroke="var(--line)"/>
+            <rect x="120" y="112" width="60" height="26" rx="5" fill="none" stroke="var(--line)"/>
+            <rect x="230" y="112" width="60" height="26" rx="5" fill="none" stroke="var(--line)"/>
+            <text x="40" y="129" text-anchor="middle" class="node-label">Display</text>
+            <text x="150" y="129" text-anchor="middle" class="node-label">Graph</text>
+            <text x="260" y="129" text-anchor="middle" class="node-label">Alert</text>
+          </svg>
+          <p class="muted" style="font-size:.87rem; margin-top:8px;">The station only knows about the <code>Observer</code> interface. New listeners attach themselves — no edits upstream.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="analogy">
+      <p class="kicker">03 — The everyday version</p>
+      <h2>Think: YouTube subscriptions</h2>
+      <div class="prose">
+        <p>A channel doesn't ping every viewer individually to ask if they want to know about a new upload. People subscribe once. When a video drops, the channel notifies its subscriber list — and it works exactly the same whether there are ten subscribers or ten million.</p>
+        <p><strong>Channel → Subject. Subscribers → Observers. New upload → the change that triggers notification.</strong></p>
+      </div>
+    </section>
+
+    <section id="structure">
+      <p class="kicker">04 — Structure</p>
+      <h2>Four moving parts</h2>
+      <figure class="diagram">
+        <svg viewBox="0 0 680 320" xmlns="http://www.w3.org/2000/svg">
+          <rect x="20" y="10" width="230" height="110" rx="8" fill="var(--panel-2)" stroke="var(--line)"/>
+          <text x="135" y="30" text-anchor="middle" font-weight="600" font-size="13" fill="var(--amber)">«interface» Subject</text>
+          <line x1="20" y1="40" x2="250" y2="40" stroke="var(--line)"/>
+          <text x="34" y="60" class="node-label">+ attach(observer)</text>
+          <text x="34" y="78" class="node-label">+ detach(observer)</text>
+          <text x="34" y="96" class="node-label">+ notify()</text>
+
+          <rect x="430" y="10" width="230" height="90" rx="8" fill="var(--panel-2)" stroke="var(--line)"/>
+          <text x="545" y="30" text-anchor="middle" font-weight="600" font-size="13" fill="var(--teal)">«interface» Observer</text>
+          <line x1="430" y1="40" x2="660" y2="40" stroke="var(--line)"/>
+          <text x="444" y="60" class="node-label">+ update(data)</text>
+
+          <rect x="20" y="170" width="230" height="110" rx="8" fill="var(--panel)" stroke="var(--amber)"/>
+          <text x="135" y="192" text-anchor="middle" font-weight="600" font-size="13" fill="var(--text)">ConcreteSubject</text>
+          <line x1="20" y1="202" x2="250" y2="202" stroke="var(--line)"/>
+          <text x="34" y="222" class="node-label">- state</text>
+          <text x="34" y="240" class="node-label">- observers[]</text>
+          <text x="34" y="258" class="node-label">+ notify() → calls update()</text>
+
+          <rect x="430" y="170" width="230" height="90" rx="8" fill="var(--panel)" stroke="var(--teal)"/>
+          <text x="545" y="192" text-anchor="middle" font-weight="600" font-size="13" fill="var(--text)">ConcreteObserver</text>
+          <line x1="430" y1="202" x2="660" y2="202" stroke="var(--line)"/>
+          <text x="444" y="222" class="node-label">+ update(data)</text>
+          <text x="444" y="240" class="node-label">  react to change</text>
+
+          <line x1="135" y1="120" x2="135" y2="170" stroke="var(--amber)" stroke-dasharray="4 3"/>
+          <polygon points="135,168 130,158 140,158" fill="var(--amber)"/>
+          <line x1="545" y1="100" x2="545" y2="170" stroke="var(--teal)" stroke-dasharray="4 3"/>
+          <polygon points="545,168 540,158 550,158" fill="var(--teal)"/>
+
+          <line x1="250" y1="60" x2="430" y2="60" stroke="var(--line)" marker-end="url(#a)"/>
+          <text x="340" y="52" text-anchor="middle" class="node-label" opacity=".8">holds a list of</text>
+          <defs><marker id="a" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6" fill="none" stroke="var(--line)"/></marker></defs>
+        </svg>
+        <figcaption>Dashed arrows = "implements". The Subject only ever talks to the Observer interface, never to ConcreteObserver directly.</figcaption>
+      </figure>
+
+      <div class="term-grid">
+        <div class="term"><b>Subject</b><span>Holds the state and the list of observers. Exposes attach / detach / notify.</span></div>
+        <div class="term"><b>Observer</b><span>A common interface every listener implements — usually just <code>update()</code>.</span></div>
+        <div class="term"><b>ConcreteSubject</b><span>The real object whose state actually changes (e.g. WeatherStation).</span></div>
+        <div class="term"><b>ConcreteObserver</b><span>The real listener (e.g. TemperatureDisplay) — decides how to react.</span></div>
+      </div>
+    </section>
+
+    <section id="workflow">
+      <p class="kicker">05 — Workflow</p>
+      <h2>Subscribe → Change → Notify → Update</h2>
+      <div class="diagram">
+        <svg viewBox="0 0 700 70" xmlns="http://www.w3.org/2000/svg">
+          <g font-family="JetBrains Mono" font-size="12" fill="var(--text)">
+            <rect x="0" y="18" width="130" height="34" rx="17" fill="var(--panel-2)" stroke="var(--line)"/>
+            <text x="65" y="40" text-anchor="middle">attach()</text>
+            <rect x="180" y="18" width="130" height="34" rx="17" fill="var(--panel-2)" stroke="var(--line)"/>
+            <text x="245" y="40" text-anchor="middle">state changes</text>
+            <rect x="360" y="18" width="130" height="34" rx="17" fill="var(--amber)" opacity=".85"/>
+            <text x="425" y="40" text-anchor="middle" fill="#221604">notify()</text>
+            <rect x="540" y="18" width="150" height="34" rx="17" fill="var(--panel-2)" stroke="var(--teal)"/>
+            <text x="615" y="40" text-anchor="middle" fill="var(--teal)">observer.update()</text>
+          </g>
+          <g stroke="var(--muted)" stroke-width="1.5" marker-end="url(#b)">
+            <line x1="130" y1="35" x2="178" y2="35"/>
+            <line x1="310" y1="35" x2="358" y2="35"/>
+            <line x1="490" y1="35" x2="538" y2="35"/>
+          </g>
+          <defs><marker id="b" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6" fill="var(--muted)"/></marker></defs>
+        </svg>
+      </div>
+      <p class="prose muted">Each registered observer receives the update in turn — one state change can ripple out to any number of listeners without the subject ever branching on "if this observer, then that."</p>
+    </section>
+
+    <section id="pseudocode">
+      <p class="kicker">06 — Pseudocode</p>
+      <h2>The shape of it, language-agnostic</h2>
+      <div class="code"><pre><span class="kw">interface</span> Observer:
+    update(data)
+
+<span class="kw">interface</span> Subject:
+    attach(observer)
+    detach(observer)
+    notify()
+
+<span class="kw">class</span> ConcreteSubject <span class="kw">implements</span> Subject:
+    observers = []
+    state = null
+
+    attach(observer):
+        observers.add(observer)
+
+    detach(observer):
+        observers.remove(observer)
+
+    notify():
+        <span class="kw">for</span> observer <span class="kw">in</span> observers:
+            observer.update(state)
+
+    setState(newState):
+        state = newState
+        notify()
+
+<span class="kw">class</span> ConcreteObserver <span class="kw">implements</span> Observer:
+    update(data):
+        <span class="c1">// react to the new data, however this observer needs to</span></pre></div>
+    </section>
+
+    <section id="code">
+      <p class="kicker">07 — Worked example</p>
+      <h2>A weather station, end to end</h2>
+      <p class="prose">The classic teaching example: one subject, two very different observers, zero coupling between them.</p>
+      <div class="code"><pre><span class="kw">class</span> Observer:
+    <span class="kw">def</span> <span class="fn">update</span>(self, temperature): <span class="kw">pass</span>
+
+<span class="kw">class</span> WeatherStation:
+    <span class="kw">def</span> <span class="fn">__init__</span>(self):
+        self.observers = []
+        self.temperature = 0
+
+    <span class="kw">def</span> <span class="fn">attach</span>(self, observer):
+        self.observers.append(observer)
+
+    <span class="kw">def</span> <span class="fn">detach</span>(self, observer):
+        self.observers.remove(observer)
+
+    <span class="kw">def</span> <span class="fn">notify</span>(self):
+        <span class="kw">for</span> observer <span class="kw">in</span> self.observers:
+            observer.update(self.temperature)
+
+    <span class="kw">def</span> <span class="fn">set_temperature</span>(self, temperature):
+        self.temperature = temperature
+        self.notify()
+
+<span class="kw">class</span> TemperatureDisplay(Observer):
+    <span class="kw">def</span> <span class="fn">update</span>(self, temperature):
+        print(<span class="s">f"Display: {temperature}°C"</span>)
+
+<span class="kw">class</span> WeatherAlert(Observer):
+    <span class="kw">def</span> <span class="fn">update</span>(self, temperature):
+        <span class="kw">if</span> temperature > 40:
+            print(<span class="s">"Alert: very high temperature!"</span>)
+
+station = WeatherStation()
+station.attach(TemperatureDisplay())
+station.attach(WeatherAlert())
+
+station.set_temperature(35)   <span class="c1"># Display: 35°C</span>
+station.set_temperature(42)   <span class="c1"># Display: 42°C  /  Alert: very high temperature!</span></pre></div>
+      <p class="prose muted">Adding a <code>MobileApp</code> observer later means writing one new class and calling <code>attach()</code> — <code>WeatherStation</code> is never touched again. That's the Open/Closed Principle in action.</p>
+    </section>
+
+    <section id="pushpull">
+      <p class="kicker">08 — Two delivery styles</p>
+      <h2>Push vs. pull</h2>
+      <div class="compare">
+        <div class="box">
+          <h4 style="color:var(--amber)">Push</h4>
+          <p class="muted" style="font-size:.9rem;">The subject sends the changed data straight to <code>update(data)</code>. Simple, but couples the signature to exactly what the subject has on hand.</p>
+        </div>
+        <div class="box">
+          <h4 style="color:var(--teal)">Pull</h4>
+          <p class="muted" style="font-size:.9rem;">The subject just says "something changed." Each observer calls back into the subject for whatever fields it actually needs. More flexible, one extra round trip.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="applicability">
+      <p class="kicker">09 — Applicability</p>
+      <h2>Reach for it when…</h2>
+      <div class="prose">
+        <ul style="padding-left:20px;">
+          <li>One object's change should trigger updates in an <em>unknown or changing</em> number of other objects.</li>
+          <li>You want subject and observers to stay loosely coupled and independently testable.</li>
+          <li>Observers need to subscribe and unsubscribe dynamically, at runtime.</li>
+          <li>You're building anything event-driven: GUIs, notification systems, live dashboards, monitoring.</li>
+        </ul>
+        <h3 style="margin-top:6px;">Think twice when…</h3>
+        <ul style="padding-left:20px;">
+          <li>There are only two objects and a direct call is simpler to trace.</li>
+          <li>Notification order matters a lot and is hard to guarantee.</li>
+          <li>You'd end up with thousands of observers — notification cost adds up.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="tradeoffs">
+      <p class="kicker">10 — Trade-offs</p>
+      <h2>Pros and cons</h2>
+      <div class="pc-grid">
+        <div>
+          <div class="pc-head" style="color:var(--teal);">+ Advantages</div>
+          <ul>
+            <li>Loose coupling — the subject depends on an interface, not concrete classes.</li>
+            <li>New observers plug in without touching the subject (Open/Closed Principle).</li>
+            <li>Subscriptions are dynamic — attach and detach at runtime.</li>
+            <li>Clean separation: subject manages state, observers decide how to react.</li>
+          </ul>
+        </div>
+        <div>
+          <div class="pc-head" style="color:var(--rose);">− Disadvantages</div>
+          <ul>
+            <li>Observers are notified in unspecified order by default — don't rely on it.</li>
+            <li>Chains of updates triggering further updates can get hard to trace.</li>
+            <li>Forgetting to <code>detach()</code> leaks memory — observers outlive their usefulness.</li>
+            <li>A very large observer list makes every state change proportionally expensive.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="examples">
+      <p class="kicker">11 — Where it shows up</p>
+      <h2>You've already used this pattern</h2>
+      <div class="ex-grid">
+        <div class="ex-card"><h4>DOM event listeners</h4><p><code>button.addEventListener('click', …)</code> — one click, any number of handlers.</p></div>
+        <div class="ex-card"><h4>Stock tickers</h4><p>A price feed pushes updates to trading apps, dashboards, and alerts simultaneously.</p></div>
+        <div class="ex-card"><h4>Order tracking</h4><p>Status changes fan out to the customer app, email, SMS, and the delivery dashboard.</p></div>
+        <div class="ex-card"><h4>Chat apps</h4><p>One new message updates the chat window, the badge count, and the notification sound.</p></div>
+        <div class="ex-card"><h4>Reactive UI state</h4><p>Modern frameworks re-render components when the state they subscribe to changes.</p></div>
+        <div class="ex-card"><h4>"Back in stock" alerts</h4><p>Shoppers subscribe to a product; restocking notifies everyone who asked.</p></div>
+      </div>
+    </section>
+
+    <section id="relations">
+      <p class="kicker">12 — Nearby patterns</p>
+      <h2>Don't confuse it with…</h2>
+      <div class="prose">
+        <p><strong>Publish–Subscribe:</strong> a close cousin. Classic Observer has the subject hold the observer list directly; Pub/Sub usually routes through a broker or event bus, so publishers and subscribers never see each other at all.</p>
+        <p><strong>Polling:</strong> the opposite instinct — repeatedly asking "did it change yet?" instead of being told. Observer trades a wasteful loop for an on-demand callback.</p>
+        <p><strong>Strategy:</strong> also behavioral, but solves a different problem — picking one interchangeable algorithm, not broadcasting a change to many listeners.</p>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<footer class="wrap">
+</footer>
+
+</body>
+</html>
